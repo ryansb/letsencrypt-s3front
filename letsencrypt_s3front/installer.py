@@ -1,8 +1,6 @@
 """S3/CloudFront Let's Encrypt installer plugin."""
 import os
 import logging
-import re
-import subprocess
 
 import zope.component
 import zope.interface
@@ -10,9 +8,6 @@ import zope.interface
 import boto3
 import botocore
 
-from acme import challenges
-
-from letsencrypt import errors
 from letsencrypt import interfaces
 from letsencrypt.plugins import common
 
@@ -66,11 +61,11 @@ class Installer(common.Plugin):
         cert_id = response['ServerCertificateMetadata']['ServerCertificateId']
         # Update CloudFront config to use the new one
         cf_cfg = cf_client.get_distribution_config(Id=self.conf('cf-distribution-id'))
-        cf_cfg['DistributionConfig']['ViewerCertificate']['IAMCertificateId'] = cert_id
-        try:
-            cf_cfg['DistributionConfig']['ViewerCertificate'].pop('CloudFrontDefaultCertificate')
-        except KeyError:
-            pass
+        cf_cfg['DistributionConfig']['ViewerCertificate'] = {
+            'IAMCertificateId': cert_id,
+            'MinimumProtocolVersion': 'TLSv1',
+            'SslSupportMethod': 'sni-only'
+        }
         response = cf_client.update_distribution(DistributionConfig=cf_cfg['DistributionConfig'],
                                                  Id=self.conf('cf-distribution-id'),
                                                  IfMatch=cf_cfg['ETag'])
