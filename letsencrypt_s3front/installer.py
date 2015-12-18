@@ -51,20 +51,33 @@ class Installer(common.Plugin):
         key = open(key_path).read()
         chain = open(chain_path).read()
         # Uplaod cert to IAM
-        response = client.upload_server_certificate(
-            Path="/cloudfront/letsencrypt/",
-            ServerCertificateName=name + '-new',
-            CertificateBody=body,
-            PrivateKey=key,
-            CertificateChain=chain
-        )
+        try:
+            response = client.upload_server_certificate(
+                Path="/cloudfront/letsencrypt/",
+                ServerCertificateName=name + '-new',
+                CertificateBody=body,
+                PrivateKey=key,
+                CertificateChain=chain
+            )
+        except:
+            # if the cert exists already, delete it and remake
+            client.delete_server_certificate(
+                ServerCertificateName=name + '-new'
+            )
+            response = client.upload_server_certificate(
+                Path="/cloudfront/letsencrypt/",
+                ServerCertificateName=name + '-new',
+                CertificateBody=body,
+                PrivateKey=key,
+                CertificateChain=chain
+            )
         cert_id = response['ServerCertificateMetadata']['ServerCertificateId']
         # Update CloudFront config to use the new one
         cf_cfg = cf_client.get_distribution_config(Id=self.conf('cf-distribution-id'))
         cf_cfg['DistributionConfig']['ViewerCertificate'] = {
             'IAMCertificateId': cert_id,
             'MinimumProtocolVersion': 'TLSv1',
-            'SslSupportMethod': 'sni-only'
+            'SSLSupportMethod': 'sni-only'
         }
         response = cf_client.update_distribution(DistributionConfig=cf_cfg['DistributionConfig'],
                                                  Id=self.conf('cf-distribution-id'),
